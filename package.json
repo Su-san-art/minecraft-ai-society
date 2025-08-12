@@ -1,0 +1,9 @@
+{
+  "name": "minecraft-ai-society",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "minecraft-bedrock-websocket-api": "^1.0.0"
+  }
+}
