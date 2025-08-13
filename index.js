@@ -8,7 +8,7 @@ const cfg = {
   auth: 'microsoft'
 };
 
-// ===== AI社会のメンバー =====
+// ===== AI社会メンバー =====
 const agents = [
   { id: 'mayor',   name: '市長',   role: '政治',  mood: 0, say: (state) => `本日の議題は食料不足です。畑の拡張を提案します。` },
   { id: 'priest',  name: '司祭',   role: '宗教',  mood: 0, say: (state) => `恵みの儀式を執り行い、収穫を祈願します。` },
@@ -18,18 +18,17 @@ const agents = [
 // ===== 世界状態 =====
 const worldState = { food: 50, faith: 40, industry: 30, tick: 0 };
 
-// ===== Bot 接続 =====
+// ===== Bot接続 =====
 const client = bedrock.createClient(cfg);
-
-let connected = false; // ← 接続待ちフラグ
+let connected = false;
 
 client.on('join', () => {
   connected = true;
-  log('✅ 接続OK。AI社会を起動します。');
-  safeSay(`§a[${cfg.username}] は世界に現れた。AI内閣を起動します。チャットで §e!help §fと入力でコマンド一覧。`);
+  log('✅ 接続完了。AI社会を起動します。');
+  safeSay(`§a[${cfg.username}] が世界に現れました。チャットで §e!help §fを入力でコマンド一覧。`);
 });
 
-// チャット受信
+// ===== チャット受信 =====
 client.on('text', (p) => {
   if (!p.message) return;
   const msg = p.message.trim();
@@ -46,14 +45,14 @@ client.on('text', (p) => {
     case '!farm': farmRoutine(); break;
     case '!mine': mineRoutine(); break;
     case '!ritual': ritual(); break;
-    default: safeSay(`未知のコマンド: ${msg}（!help 参照）`); break;
+    default: safeSay(`未知のコマンド: ${msg}（!help参照）`); break;
   }
 });
 
 // ===== 周期タスク =====
 const TICK_INTERVAL = parseInt(process.env.TICK_INTERVAL_MS || '12000', 10);
 setInterval(() => {
-  if (!connected) return; // ← 接続前は何もしない
+  if(!connected) return; // ← 接続前は実行しない
   worldState.tick++;
   try {
     council();
@@ -76,7 +75,7 @@ function council() {
 function farmRoutine(auto=false) {
   const op = (process.env.ALLOW_OP_COMMANDS || 'false').toLowerCase() === 'true';
   if (op) command('title @a actionbar {"rawtext":[{"text":"§aAI農業：畑を拡張中…"}]}');
-  safeSay(op ? '§a[農業] 畑拡張を実行しました。' : '§a[農業] 畑の拡張を計画中（OP権限なし）');
+  safeSay(op ? '§a[農業] 畑拡張を実行しました。' : '§a[農業] 計画中（OP権限なし）');
   worldState.food = Math.min(100, worldState.food + (op ? 10 : 3));
 }
 
@@ -84,7 +83,7 @@ function farmRoutine(auto=false) {
 function mineRoutine(auto=false) {
   const op = (process.env.ALLOW_OP_COMMANDS || 'false').toLowerCase() === 'true';
   if (op) command('title @a actionbar {"rawtext":[{"text":"§6AI掘削：坑道延長中…"}]}');
-  safeSay(op ? '§6[掘削] 坑道を延長しました。' : '§6[掘削] 掘削隊を派遣（OP権限なし）');
+  safeSay(op ? '§6[掘削] 坑道を延長しました。' : '§6[掘削] 派遣中（OP権限なし）');
   worldState.industry = Math.min(100, worldState.industry + (op ? 10 : 3));
 }
 
@@ -92,18 +91,18 @@ function mineRoutine(auto=false) {
 function ritual(auto=false) {
   const op = (process.env.ALLOW_OP_COMMANDS || 'false').toLowerCase() === 'true';
   if (op) command('title @a actionbar {"rawtext":[{"text":"§dAI儀式：信仰を高めています…"}]}');
-  safeSay('§d[儀式] 司祭が祝福を行い、民の心が静まった。');
+  safeSay('§d[儀式] 司祭が祝福を行いました。');
   worldState.faith = Math.min(100, worldState.faith + (op ? 10 : 5));
 }
 
 // ===== 安全ラッパー =====
 function safeSay(msg){
   if(!msg || typeof msg !== 'string') msg='';
-  if(!client || !client.queue) return; // ← queueが未定義なら送信しない
+  if(!client || !client.queue) return;
   client.queue('text', { type:'chat', needs_translation:false, source_name:cfg.username, message:msg, xuid:'', platform_chat_id:'' });
 }
 function speak(msg){ safeSay(msg); }
-function command(cmd){ 
+function command(cmd){
   if(!cmd || typeof cmd !== 'string') return;
   if(!client || !client.queue) return;
   client.queue('command_request', {
