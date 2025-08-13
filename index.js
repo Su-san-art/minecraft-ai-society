@@ -8,21 +8,23 @@ const cfg = {
   auth: 'microsoft'
 };
 
-// ===== 仮想エージェント（AI社会のメンバー） =====
+// ===== AI社会のメンバー =====
 const agents = [
   { id: 'mayor',   name: '市長',   role: '政治',  mood: 0, say: (state) => `本日の議題は食料不足です。畑の拡張を提案します。` },
   { id: 'priest',  name: '司祭',   role: '宗教',  mood: 0, say: (state) => `恵みの儀式を執り行い、収穫を祈願します。` },
   { id: 'foreman', name: '監督',   role: '労務',  mood: 0, say: (state) => `坑道を東に3ブロック延長し、人手を配置します。` }
 ];
 
-// ===== 状態 =====
+// ===== 世界状態 =====
 const worldState = { food: 50, faith: 40, industry: 30, tick: 0 };
 
-// ===== Bot 接続 ======
+// ===== Bot 接続 =====
 const client = bedrock.createClient(cfg);
 
-// 接続OK
+let connected = false; // ← 接続待ちフラグ
+
 client.on('join', () => {
+  connected = true;
   log('✅ 接続OK。AI社会を起動します。');
   safeSay(`§a[${cfg.username}] は世界に現れた。AI内閣を起動します。チャットで §e!help §fと入力でコマンド一覧。`);
 });
@@ -51,8 +53,16 @@ client.on('text', (p) => {
 // ===== 周期タスク =====
 const TICK_INTERVAL = parseInt(process.env.TICK_INTERVAL_MS || '12000', 10);
 setInterval(() => {
+  if (!connected) return; // ← 接続前は何もしない
   worldState.tick++;
-  try { council(); farmRoutine(true); mineRoutine(true); ritual(true); } catch(e){ log('Tick error:', e); }
+  try {
+    council();
+    farmRoutine(true);
+    mineRoutine(true);
+    ritual(true);
+  } catch(e){
+    log('Tick error:', e);
+  }
 }, TICK_INTERVAL);
 
 // ===== 会議 =====
@@ -89,11 +99,13 @@ function ritual(auto=false) {
 // ===== 安全ラッパー =====
 function safeSay(msg){
   if(!msg || typeof msg !== 'string') msg='';
+  if(!client || !client.queue) return; // ← queueが未定義なら送信しない
   client.queue('text', { type:'chat', needs_translation:false, source_name:cfg.username, message:msg, xuid:'', platform_chat_id:'' });
 }
 function speak(msg){ safeSay(msg); }
 function command(cmd){ 
   if(!cmd || typeof cmd !== 'string') return;
+  if(!client || !client.queue) return;
   client.queue('command_request', {
     command: `/${cmd}`,
     origin:{ type:0, uuid:'', request_id:'0', player_entity_id:0 },
