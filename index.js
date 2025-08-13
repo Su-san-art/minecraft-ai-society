@@ -145,5 +145,3 @@ function log(...a){ console.log(...a); }
 client.on('error', (e) => console.error('Client error:', e?.message || e));
 client.on('kick', (p) => console.error('Kicked:', p));
 client.on('close', () => console.error('Disconnected. 再起動が必要です。'));
-
-});
