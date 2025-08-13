@@ -4,7 +4,9 @@
   "main": "index.js",
   "license": "MIT",
   "type": "module",
-  "engines": { "node": ">=18.0.0" },
+  "engines": {
+    "node": "22.x"
+  }
   "dependencies": {
     "bedrock-protocol": "^3.34.0",
     "dotenv": "^16.4.5"
