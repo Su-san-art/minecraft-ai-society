@@ -1,9 +1,15 @@
 {
-  "name": "minecraft-ai-society",
+  "name": "mc-ai-society",
   "version": "1.0.0",
   "main": "index.js",
   "license": "MIT",
+  "type": "module",
+  "engines": { "node": ">=18.0.0" },
   "dependencies": {
-    "bedrock-protocol": "^3.35.0"
+    "bedrock-protocol": "^3.34.0",
+    "dotenv": "^16.4.5"
+  },
+  "scripts": {
+    "start": "node index.js"
   }
 }
