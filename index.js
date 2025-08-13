@@ -5,57 +5,143 @@ const cfg = {
   host: process.env.MC_HOST,
   port: parseInt(process.env.MC_PORT || '19132', 10),
   username: process.env.MC_USERNAME || 'AISocietyBot',
+  // msa 認証（Render上で既にデバイスコード認証が走るはず）
   auth: 'microsoft'
 };
 
+// ===== 仮想エージェント（AI社会のメンバー） =====
 const agents = [
-  { id: 'mayor',   name: '市長', role: '政治', say: () => `食料不足なので畑を拡張します。` },
-  { id: 'priest',  name: '司祭', role: '宗教', say: () => `儀式で収穫を祈願します。` },
-  { id: 'foreman', name: '監督', role: '労務', say: () => `坑道を延長します。` }
+  { id: 'mayor',   name: '市長',   role: '政治',  mood: 0, say: (state) => `本日の議題は食料不足です。畑の拡張を提案します。` },
+  { id: 'priest',  name: '司祭',   role: '宗教',  mood: 0, say: (state) => `恵みの儀式を執り行い、収穫を祈願します。` },
+  { id: 'foreman', name: '監督',   role: '労務',  mood: 0, say: (state) => `坑道を東に3ブロック延長し、人手を配置します。` }
 ];
 
-const worldState = { food:50, faith:40, industry:30, tick:0 };
+// ====== 状態（シンプルな世界観メモ） ======
+const worldState = {
+  food: 50,       // 0-100
+  faith: 40,      // 0-100
+  industry: 30,   // 0-100
+  tick: 0
+};
 
-const client = bedrock.createClient({ host: cfg.host, port: cfg.port, username: cfg.username, auth: cfg.auth });
-
-client.on('join', () => {
-  log('✅ 接続OK');
-  say(`§a[${cfg.username}] が世界に現れた。`);
+// ====== Bot 接続 ======
+const client = bedrock.createClient({
+  host: cfg.host, port: cfg.port, username: cfg.username, auth: cfg.auth
 });
 
+client.on('join', () => {
+  log('✅ 接続OK。AI社会を起動します。');
+  say(`§a[${cfg.username}] は世界に現れた。AI内閣を起動します。チャットで §e!help §fと入力でコマンド一覧。`);
+});
+
+// Aternosのチャットを受信
 client.on('text', (p) => {
   if (p.type !== 'chat' && p.type !== 'whisper') return;
-  let msg = (p.message || '').trim();
+  const msg = (p.message || '').trim();
   const from = p.source_name || 'player';
   if (!msg.startsWith('!')) return;
 
-  if (msg === '!help') say('!council | !farm | !mine | !status | !ritual');
-  else if (msg === '!status') say(`食料:${worldState.food} / 信仰:${worldState.faith} / 産業:${worldState.industry}`);
-  else if (msg === '!council') council();
-  else if (msg === '!farm') farmRoutine();
-  else if (msg === '!mine') mineRoutine();
-  else if (msg === '!ritual') ritual();
-  else say(`未知のコマンド: ${msg}`);
+  // コマンド処理
+  if (msg === '!help') {
+    say('利用可能: !council（評議会）| !farm（農業）| !mine（掘削）| !status（社会指標） | !ritual（宗教儀式）');
+  } else if (msg === '!status') {
+    say(`社会指標 → 食料:${worldState.food} / 信仰:${worldState.faith} / 産業:${worldState.industry}`);
+  } else if (msg === '!council') {
+    council();
+  } else if (msg === '!farm') {
+    farmRoutine();
+  } else if (msg === '!mine') {
+    mineRoutine();
+  } else if (msg === '!ritual') {
+    ritual();
+  } else {
+    say(`未知のコマンド: ${msg}（!help 参照）`);
+  }
 });
 
-const TICK_INTERVAL = 12000;
+// ====== 周期タスク（自動で社会が回る） ======
+const TICK_INTERVAL = parseInt(process.env.TICK_INTERVAL_MS || '12000', 10);
 setInterval(() => {
   worldState.tick++;
+  // 定期イベント：会議→行動→指標変動
   if (worldState.tick % 1 === 0) council();
-  if (worldState.tick % 2 === 0) farmRoutine(true);
-  if (worldState.tick % 3 === 0) mineRoutine(true);
-  if (worldState.tick % 4 === 0) ritual(true);
+  if (worldState.tick % 2 === 0) farmRoutine(true);   // 自動軽め
+  if (worldState.tick % 3 === 0) mineRoutine(true);   // 自動軽め
+  if (worldState.tick % 4 === 0) ritual(true);        // 自動軽め
 }, TICK_INTERVAL);
 
-function council() { speak(`§b[評議会] 開会`); agents.forEach(a=>speak(`§7${a.name}(${a.role}): ${a.say()}`)); speak(`§b[評議会] 閉会`); }
-function farmRoutine(auto=false) { worldState.food=Math.min(100,worldState.food+(auto?3:10)); speak(`§a[農業] 畑を更新しました。`); }
-function mineRoutine(auto=false) { worldState.industry=Math.min(100,worldState.industry+(auto?3:10)); speak(`§6[掘削] 坑道を更新しました。`); }
-function ritual(auto=false) { worldState.faith=Math.min(100,worldState.faith+(auto?5:10)); speak(`§d[儀式] 儀式を実施しました。`); }
+// ====== 会議ロールプレイ（会話のみ・後で本物AIに差し替え可） ======
+function council() {
+  speak(`§b[評議会] 開会。`);
+  agents.forEach(a => speak(`§7${a.name}(${a.role}): ${a.say(worldState)}`));
+  // 簡易ルール：食料が低ければ畑拡張、産業が低ければ掘削強化、信仰が低ければ儀式
+  if (worldState.food < 60) farmRoutine();
+  if (worldState.industry < 60) mineRoutine();
+  if (worldState.faith < 60) ritual();
+  speak(`§b[評議会] 閉会。`);
+}
 
-function say(msg){ if(!msg) msg=''; client.queue('text',{ type:'chat',needs_translation:false,source_name:cfg.username,message:msg,xuid:'',platform_chat_id:'' }); }
-function speak(msg){ say(msg); }
+// ====== 農業（簡易） ======
+// OP権限があれば /fill で畑整備。無ければチャットのみ（ロールプレイ）。
+function farmRoutine(auto=false) {
+  const op = (process.env.ALLOW_OP_COMMANDS || 'false').toLowerCase() === 'true';
+  if (op) {
+    // 立っている周辺を畑化（安全のため小さめ）
+    command('title @a actionbar {"rawtext":[{"text":"§aAI農業：畑を拡張中…"}]}');
+    // プレイヤー（Bot）周囲 5x5 を farmland に（Yは ~-1 に調整してね）
+    command('execute as @s at @s run fill ~-2 ~-1 ~-2 ~2 ~-1 ~2 farmland');
+    // 種をそれっぽく置く（実際の作物ブロックはワールド設定依存、装飾用に小麦の芽相当を置く例）
+    command('execute as @s at @s run fill ~-2 ~ ~-2 ~2 ~ ~2 wheat');
+    say('§a[農業] 畑拡張を実行しました。');
+  } else {
+    say('§a[農業] 畑の拡張を計画中（OP権限が無いのでロールプレイのみ）。');
+  }
+  // 社会指標の更新
+  worldState.food = Math.min(100, worldState.food + (op ? 10 : 3));
+}
+
+// ====== 掘削（簡易） ======
+function mineRoutine(auto=false) {
+  const op = (process.env.ALLOW_OP_COMMANDS || 'false').toLowerCase() === 'true';
+  if (op) {
+    command('title @a actionbar {"rawtext":[{"text":"§6AI掘削：坑道延長中…"}]}');
+    // 目の前に 3x3x4 の空洞を掘る（Botの前方を想定）
+    command('execute as @s at @s facing entity @s eyes run fill ^-1 ~-1 ^1 ^1 ~1 ^5 air replace stone');
+    say('§6[掘削] 坑道を延長しました。');
+  } else {
+    say('§6[掘削] 掘削隊を派遣（OP権限が無いのでロールプレイのみ）。');
+  }
+  worldState.industry = Math.min(100, worldState.industry + (op ? 10 : 3));
+}
+
+// ====== 宗教儀式（簡易） ======
+function ritual(auto=false) {
+  const op = (process.env.ALLOW_OP_COMMANDS || 'false').toLowerCase() === 'true';
+  if (op) {
+    // 周辺に装飾（旗やたいまつ置き場など）— ワールドのブロックIDに応じて調整してね
+    command('title @a actionbar {"rawtext":[{"text":"§dAI儀式：信仰を高めています…"}]}');
+    command('execute as @s at @s run setblock ~ ~ ~ torch');
+  }
+  speak('§d[儀式] 司祭が祝福を行い、民の心が静まった。');
+  worldState.faith = Math.min(100, worldState.faith + (op ? 10 : 5));
+}
+
+// ===== 低レベル：チャット / コマンド =====
+function say(msg) {
+  client.queue('text', { type: 'chat', needs_translation: false, source_name: cfg.username, message: msg, xuid: '', platform_chat_id: '' });
+}
+function speak(msg) { say(msg); }
+function command(cmd) {
+  // 注意：/コマンド実行にはBotがOPである必要があります
+  client.queue('command_request', {
+    command: `/${cmd}`,
+    origin: { type: 0, uuid: '', request_id: '0', player_entity_id: 0 },
+    internal: false, version: 62
+  });
+}
 function log(...a){ console.log(...a); }
 
-client.on('error', e=>console.error('Client error:', e?.message||e));
-client.on('kick', p=>console.error('Kicked:', p));
-client.on('close', ()=>console.error('Disconnected.'));
+// ===== 例外処理 =====
+client.on('error', (e) => console.error('Client error:', e?.message || e));
+client.on('kick', (p) => console.error('Kicked:', p));
+client.on('close', () => console.error('Disconnected. 再起動が必要です。'));
