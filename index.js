@@ -1,119 +1,82 @@
-import 'dotenv/config';
-import bedrock from 'bedrock-protocol';
+import { createClient } from 'bedrock-protocol';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const cfg = {
   host: process.env.MC_HOST,
-  port: parseInt(process.env.MC_PORT || '19132', 10),
+  port: parseInt(process.env.MC_PORT, 10) || 19132,
   username: process.env.MC_USERNAME || 'AISocietyBot',
   auth: 'microsoft'
 };
 
-// ===== AI社会メンバー =====
-const agents = [
-  { id: 'mayor',   name: '市長',   role: '政治',  mood: 0, say: (state) => `本日の議題は食料不足です。畑の拡張を提案します。` },
-  { id: 'priest',  name: '司祭',   role: '宗教',  mood: 0, say: (state) => `恵みの儀式を執り行い、収穫を祈願します。` },
-  { id: 'foreman', name: '監督',   role: '労務',  mood: 0, say: (state) => `坑道を東に3ブロック延長し、人手を配置します。` }
-];
+let client;
 
-// ===== 世界状態 =====
-const worldState = { food: 50, faith: 40, industry: 30, tick: 0 };
+function connect() {
+  console.log(`接続中: ${cfg.host}:${cfg.port} ユーザー: ${cfg.username}`);
+  client = createClient(cfg);
 
-// ===== Bot接続 =====
-const client = bedrock.createClient(cfg);
-let connected = false;
+  client.on('join', () => {
+    console.log('✅ 接続完了。AI社会を起動します。');
+    safeSay('§a[AI社会] 接続しました。');
+  });
 
-client.on('join', () => {
-  connected = true;
-  log('✅ 接続完了。AI社会を起動します。');
-  safeSay(`§a[${cfg.username}] が世界に現れました。チャットで §e!help §fを入力でコマンド一覧。`);
-});
+  client.on('text', (packet) => {
+    if (packet.source_name && packet.message) {
+      console.log(`[CHAT] ${packet.source_name}: ${packet.message}`);
+    }
+  });
 
-// ===== チャット受信 =====
-client.on('text', (p) => {
-  if (!p.message) return;
-  const msg = p.message.trim();
-  if (!msg.startsWith('!')) return;
+  client.on('disconnect', (reason) => {
+    console.log('⚠️ 切断:', reason);
+    setTimeout(connect, 5000);
+  });
 
-  switch(msg) {
-    case '!help':
-      safeSay('利用可能: !council | !farm | !mine | !status | !ritual');
-      break;
-    case '!status':
-      safeSay(`社会指標 → 食料:${worldState.food} / 信仰:${worldState.faith} / 産業:${worldState.industry}`);
-      break;
-    case '!council': council(); break;
-    case '!farm': farmRoutine(); break;
-    case '!mine': mineRoutine(); break;
-    case '!ritual': ritual(); break;
-    default: safeSay(`未知のコマンド: ${msg}（!help参照）`); break;
-  }
-});
-
-// ===== 周期タスク =====
-const TICK_INTERVAL = parseInt(process.env.TICK_INTERVAL_MS || '12000', 10);
-setInterval(() => {
-  if(!connected) return; // ← 接続前は実行しない
-  worldState.tick++;
-  try {
-    council();
-    farmRoutine(true);
-    mineRoutine(true);
-    ritual(true);
-  } catch(e){
-    log('Tick error:', e);
-  }
-}, TICK_INTERVAL);
-
-// ===== 会議 =====
-function council() {
-  speak(`§b[評議会] 開会。`);
-  agents.forEach(a => speak(`§7${a.name}(${a.role}): ${a.say(worldState)}`));
-  speak(`§b[評議会] 閉会。`);
-}
-
-// ===== 農業 =====
-function farmRoutine(auto=false) {
-  const op = (process.env.ALLOW_OP_COMMANDS || 'false').toLowerCase() === 'true';
-  if (op) command('title @a actionbar {"rawtext":[{"text":"§aAI農業：畑を拡張中…"}]}');
-  safeSay(op ? '§a[農業] 畑拡張を実行しました。' : '§a[農業] 計画中（OP権限なし）');
-  worldState.food = Math.min(100, worldState.food + (op ? 10 : 3));
-}
-
-// ===== 掘削 =====
-function mineRoutine(auto=false) {
-  const op = (process.env.ALLOW_OP_COMMANDS || 'false').toLowerCase() === 'true';
-  if (op) command('title @a actionbar {"rawtext":[{"text":"§6AI掘削：坑道延長中…"}]}');
-  safeSay(op ? '§6[掘削] 坑道を延長しました。' : '§6[掘削] 派遣中（OP権限なし）');
-  worldState.industry = Math.min(100, worldState.industry + (op ? 10 : 3));
-}
-
-// ===== 儀式 =====
-function ritual(auto=false) {
-  const op = (process.env.ALLOW_OP_COMMANDS || 'false').toLowerCase() === 'true';
-  if (op) command('title @a actionbar {"rawtext":[{"text":"§dAI儀式：信仰を高めています…"}]}');
-  safeSay('§d[儀式] 司祭が祝福を行いました。');
-  worldState.faith = Math.min(100, worldState.faith + (op ? 10 : 5));
-}
-
-// ===== 安全ラッパー =====
-function safeSay(msg){
-  if(!msg || typeof msg !== 'string') msg='';
-  if(!client || !client.queue) return;
-  client.queue('text', { type:'chat', needs_translation:false, source_name:cfg.username, message:msg, xuid:'', platform_chat_id:'' });
-}
-function speak(msg){ safeSay(msg); }
-function command(cmd){
-  if(!cmd || typeof cmd !== 'string') return;
-  if(!client || !client.queue) return;
-  client.queue('command_request', {
-    command: `/${cmd}`,
-    origin:{ type:0, uuid:'', request_id:'0', player_entity_id:0 },
-    internal:false, version:62
+  client.on('error', (err) => {
+    console.error('❌ エラー:', err);
   });
 }
-function log(...a){ console.log(...a); }
 
-// ===== 例外処理 =====
-client.on('error', (e) => console.error('Client error:', e?.message || e));
-client.on('kick', (p) => console.error('Kicked:', p));
-client.on('close', () => console.error('Disconnected. 再起動が必要です。'));
+// 安全なチャット送信
+function safeSay(msg) {
+  if (typeof msg !== 'string') {
+    console.warn('[WARN] safeSayにstring以外が渡されたため空文字に置換:', msg);
+    msg = '';
+  }
+  if (!client || typeof client.queue !== 'function') {
+    console.warn('[WARN] client未接続のためsafeSayスキップ');
+    return;
+  }
+  client.queue('text', {
+    type: 'chat',
+    needs_translation: false,
+    source_name: cfg.username || 'AISocietyBot',
+    message: msg,
+    xuid: '',
+    platform_chat_id: ''
+  });
+}
+
+// 安全なコマンド送信
+function command(cmd) {
+  if (typeof cmd !== 'string' || cmd.trim() === '') {
+    console.warn('[WARN] 空または無効なcommand呼び出し');
+    return;
+  }
+  if (!client || typeof client.queue !== 'function') {
+    console.warn('[WARN] client未接続のためcommandスキップ');
+    return;
+  }
+  client.queue('command_request', {
+    command: `/${cmd}`,
+    origin: { type: 0, uuid: '', request_id: '0', player_entity_id: 0 },
+    internal: false,
+    version: 62
+  });
+}
+
+// 定期タスク（例：AIが会話する）
+setInterval(() => {
+  safeSay('§e[AI社会] 自動メッセージ送信テスト');
+}, 60000);
+
+connect();
