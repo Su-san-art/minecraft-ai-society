@@ -1,10 +1,10 @@
 const bedrock = require('bedrock-protocol');
 
 const client = bedrock.createClient({
-  host: process.env.MC_HOST,
-  port: parseInt(process.env.MC_PORT || "19132"),
-  username: "AISocietyBot",
-  offline: true  // ← 追加
+  host: process.env.MC_HOST || "AIMinecraft1129.aternos.me", // デフォルト値を指定
+  port: parseInt(process.env.MC_PORT || "27106"),
+  username: process.env.BOT_NAME || "AISocietyBot",
+  offline: true
 });
 
 client.on('connect', () => {
@@ -12,7 +12,7 @@ client.on('connect', () => {
   client.queue('text', { 
     type: 'chat',
     needs_translation: false,
-    source_name: 'AISocietyBot',
+    source_name: client.username,
     message: "AI社会が始動しました！",
     xuid: '',
     platform_chat_id: ''
@@ -20,7 +20,7 @@ client.on('connect', () => {
 });
 
 client.on('text', (packet) => {
-  if (packet.type === 'chat') {
+  if (packet.type === 'chat' && packet.message) { // undefined防止
     const msg = packet.message;
     let reply = "";
 
@@ -37,10 +37,18 @@ client.on('text', (packet) => {
     client.queue('text', { 
       type: 'chat',
       needs_translation: false,
-      source_name: 'AISocietyBot',
+      source_name: client.username,
       message: reply,
       xuid: '',
       platform_chat_id: ''
     });
   }
+});
+
+client.on('error', (err) => {
+  console.error("⚠️ Bot Error:", err);
+});
+
+client.on('disconnect', (packet) => {
+  console.log("❌ Bot disconnected:", packet);
 });
