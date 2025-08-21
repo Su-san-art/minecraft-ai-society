@@ -28,8 +28,3 @@ client.on('text', (packet) => {
     client.queue('text', { type: 'chat', needs_translation: false, source_name: 'AISocietyBot', message: reply, xuid: '', platform_chat_id: '' });
   }
 });
-
-  safeSay('§e[AI社会] 自動メッセージ送信テスト');
-}, 60000);
-
-connect();
