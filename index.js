@@ -3,7 +3,8 @@ const bedrock = require('bedrock-protocol');
 const client = bedrock.createClient({
   host: process.env.MC_HOST,
   port: parseInt(process.env.MC_PORT || "19132"),
-  username: "AISocietyBot"
+  username: "AISocietyBot",
+  offline: true  // ← 追加
 });
 
 client.on('connect', () => {
