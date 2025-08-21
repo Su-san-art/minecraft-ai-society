@@ -1,13 +1,21 @@
 const bedrock = require('bedrock-protocol');
 
 const client = bedrock.createClient({
-  host: process.env.MC_HOST, // BedrockサーバのIP
+  host: process.env.MC_HOST, // BedrockサーバのIP (例: aternos の IP)
   port: parseInt(process.env.MC_PORT || "19132"),
   username: "AISocietyBot"
 });
 
-client.on('join', () => {
-  console.log("✅ AI Society connected");
+client.on('connect', () => {
+  console.log("✅ AI Society connected to server!");
+  client.queue('text', { 
+    type: 'chat',
+    needs_translation: false,
+    source_name: 'AISocietyBot',
+    message: "AI社会が始動しました！",
+    xuid: '',
+    platform_chat_id: ''
+  });
 });
 
 client.on('text', (packet) => {
@@ -24,6 +32,18 @@ client.on('text', (packet) => {
     } else {
       reply = "わかりました、その件について検討します。";
     }
+
+    client.queue('text', { 
+      type: 'chat',
+      needs_translation: false,
+      source_name: 'AISocietyBot',
+      message: reply,
+      xuid: '',
+      platform_chat_id: ''
+    });
+  }
+});
+
 
     client.queue('text', { type: 'chat', needs_translation: false, source_name: 'AISocietyBot', message: reply, xuid: '', platform_chat_id: '' });
   }
